@@ -34,7 +34,7 @@ export default function Navbar() {
           <NavLink href="/chat" active={pathname === '/chat'}>Consultas</NavLink>
           <NavLink href="/history" active={pathname === '/history'}>Historial</NavLink>
           {user?.role === 'admin' && (
-            <NavLink href="/admin/documents" active={pathname?.startsWith('/admin')}>Administración</NavLink>
+            <NavLink href="/admin" active={pathname?.startsWith('/admin')}>Administración</NavLink>
           )}
         </nav>
 
