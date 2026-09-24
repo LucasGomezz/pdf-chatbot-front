@@ -1,0 +1,16 @@
+export const C = {
+  verde:       '#3a6e28',
+  verdeDark:   '#2b5220',
+  verdeLight:  '#eef4eb',
+  verdeMid:    '#5a9043',
+  verdeGlow:   'rgba(58,110,40,0.12)',
+  gris:        '#f5f5f3',
+  grisBorde:   '#e2e2dc',
+  grisSuave:   '#fafaf8',
+  texto:       '#111827',
+  textoSuave:  '#6b7280',
+  textoMedio:  '#374151',
+  blanco:      '#ffffff',
+  sombra:      '0 1px 3px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06)',
+  sombraCard:  '0 2px 8px rgba(0,0,0,0.06), 0 8px 32px rgba(0,0,0,0.08)',
+} as const;
