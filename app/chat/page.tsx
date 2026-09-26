@@ -46,6 +46,7 @@ function ChatPageInner() {
   const [streaming, setStreaming] = useState(false);
   const [wsError, setWsError] = useState('');
   const [limitMessage, setLimitMessage] = useState('');
+  const [limitReason, setLimitReason] = useState<'user' | 'global' | undefined>(undefined);
   const [justFinished, setJustFinished] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -88,6 +89,7 @@ function ChatPageInner() {
     setInput('');
     setWsError('');
     setLimitMessage('');
+    setLimitReason(undefined);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
     const history = messages.map(m => ({ role: m.role, content: m.content }));
@@ -128,13 +130,14 @@ function ChatPageInner() {
         setWsError(message);
         setStreaming(false);
       },
-      onLimit: (message) => {
+      onLimit: (message, reason) => {
         setMessages(prev => {
           const u = prev.slice(0, -1);
           saveSession(u);
           return u;
         });
         setLimitMessage(message);
+        setLimitReason(reason);
         setStreaming(false);
       },
     }).catch((err) => {
@@ -147,13 +150,20 @@ function ChatPageInner() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQuestion(); }
   }
 
-  const lauPose = streaming ? '/lau-thinking.png' : justFinished ? '/lau-excited.png' : '/lau-reading.png';
+  const lauPose = streaming
+    ? '/lau-thinking.png'
+    : justFinished
+    ? '/lau-excited.png'
+    : messages.length === 0
+    ? '/lau-folder.png'
+    : '/lau-reading.png';
 
   function newChat() {
     sessionStorage.removeItem(SESSION_KEY);
     setMessages([]);
     setWsError('');
     setLimitMessage('');
+    setLimitReason(undefined);
   }
 
   if (loading) return null;
@@ -188,8 +198,8 @@ function ChatPageInner() {
                   background: '#fff', border: `1px solid ${C.grisBorde}`, borderRadius: 18,
                   padding: '14px 20px', boxShadow: C.sombra,
                 }}>
-                  <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.texto }}>¡Hola! ¿Cómo estás? 👋</p>
-                  <p style={{ margin: '4px 0 0', fontSize: 14, color: C.textoMedio }}>¿En qué te ayudo hoy?</p>
+                  <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.texto }}>¡Hola! Soy Lau 👋</p>
+                  <p style={{ margin: '4px 0 0', fontSize: 14, color: C.textoMedio }}>¿En qué puedo ayudarte hoy?</p>
                 </div>
                 <span style={{ position: 'absolute', left: -12, bottom: 8, width: 10, height: 10, borderRadius: '50%', background: '#fff', border: `1px solid ${C.grisBorde}` }} />
                 <span style={{ position: 'absolute', left: -22, bottom: 1, width: 6, height: 6, borderRadius: '50%', background: '#fff', border: `1px solid ${C.grisBorde}` }} />
@@ -285,10 +295,21 @@ function ChatPageInner() {
 
           {limitMessage && (
             <div style={{
-              background: '#fdf6e8', border: '1px solid #e8d8a8', borderRadius: 8,
-              padding: '10px 14px', color: '#7a5c10', fontSize: 13, margin: '8px 0',
+              background: '#fdf6e8', border: '1px solid #e8d8a8', borderRadius: 12,
+              padding: '14px 18px', margin: '8px 0', display: 'flex', gap: 14, alignItems: 'center',
+              boxShadow: C.sombra,
             }}>
-              {limitMessage}
+              <img src="/lau-limit.png" alt="" style={{ height: 90, width: 'auto', flexShrink: 0 }} />
+              <div>
+                <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#7a5c10' }}>
+                  {limitReason === 'user' ? '¡Te quedaste sin consultas por hoy!' : 'El asistente llegó a su límite de uso por hoy'}
+                </p>
+                <p style={{ margin: '4px 0 0', fontSize: 13, color: '#8a6d20' }}>
+                  {limitReason === 'user'
+                    ? 'Podés pedirle a algún compañero que te ayude, o volvé a probar mañana.'
+                    : limitMessage}
+                </p>
+              </div>
             </div>
           )}
           <div ref={bottomRef} />

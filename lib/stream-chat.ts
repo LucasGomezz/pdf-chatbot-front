@@ -6,7 +6,7 @@ export interface ChatCallbacks {
   onToken: (chunk: string) => void;
   onDone: (sources: Source[]) => void;
   onError: (message: string) => void;
-  onLimit: (message: string) => void;
+  onLimit: (message: string, reason?: 'user' | 'global') => void;
 }
 
 export interface HistoryMessage { role: 'user' | 'assistant'; content: string; }
@@ -58,7 +58,7 @@ export async function streamAsk(
         const event = JSON.parse(line.slice(6));
         if (event.type === 'token') callbacks.onToken(event.data);
         else if (event.type === 'done') callbacks.onDone(event.data?.sources ?? []);
-        else if (event.type === 'limit') callbacks.onLimit(event.data?.message ?? event.data);
+        else if (event.type === 'limit') callbacks.onLimit(event.data?.message ?? event.data, event.data?.reason);
         else if (event.type === 'chat_error') callbacks.onError(event.data);
       } catch {
         // malformed chunk, skip
