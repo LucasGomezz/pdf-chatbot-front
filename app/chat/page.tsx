@@ -195,10 +195,10 @@ function ChatPageInner() {
                   padding: '10px 14px', boxShadow: C.sombra, maxWidth: 180, textAlign: 'center',
                 }}>
                   <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#7a5c10' }}>
-                    {limitReason === 'user' ? 'Sin consultas por hoy 😅' : 'Límite del día alcanzado'}
+                    {limitReason === 'user' ? 'Sin consultas por hoy' : 'Límite del día alcanzado'}
                   </p>
                   <p style={{ margin: '3px 0 0', fontSize: 12, color: '#8a6d20' }}>
-                    {limitReason === 'user' ? 'Volvé mañana' : 'Volvé más tarde'}
+                    {limitReason === 'user' ? 'Podemos seguir mañana' : 'Volvé más tarde'}
                   </p>
                 </div>
                 <span style={{ position: 'absolute', left: '50%', top: -6, width: 8, height: 8, borderRadius: '50%', background: '#fdf6e8', border: '1px solid #e8d8a8', transform: 'translateX(-50%)' }} />
