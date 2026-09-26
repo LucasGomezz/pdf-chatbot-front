@@ -48,6 +48,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   function logout() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    // 'chat_session' debe coincidir con SESSION_KEY en app/chat/page.tsx — sin esto,
+    // otro usuario que inicie sesión en la misma pestaña vería la conversación anterior.
+    sessionStorage.removeItem('chat_session');
     setToken(null);
     setUser(null);
     router.push('/login');
