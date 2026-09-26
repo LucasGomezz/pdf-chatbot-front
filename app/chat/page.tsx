@@ -43,6 +43,7 @@ function ChatPageInner() {
   const [streaming, setStreaming] = useState(false);
   const [wsError, setWsError] = useState('');
   const [limitMessage, setLimitMessage] = useState('');
+  const [justFinishedIndex, setJustFinishedIndex] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const initializedRef = useRef(false);
@@ -87,8 +88,10 @@ function ChatPageInner() {
 
     const history = messages.map(m => ({ role: m.role, content: m.content }));
     const next: Message[] = [...messages, { role: 'user', content: q }, { role: 'assistant', content: '' }];
+    const assistantIndex = next.length - 1;
     setMessages(next);
     setStreaming(true);
+    setJustFinishedIndex(null);
 
     let assistantMsg = '';
 
@@ -110,6 +113,10 @@ function ChatPageInner() {
           return u;
         });
         setStreaming(false);
+        setJustFinishedIndex(assistantIndex);
+        setTimeout(() => {
+          setJustFinishedIndex((cur) => (cur === assistantIndex ? null : cur));
+        }, 2500);
       },
       onError: (message) => {
         setWsError(message);
@@ -134,6 +141,13 @@ function ChatPageInner() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQuestion(); }
   }
 
+  function lauPoseFor(i: number): string {
+    const isLast = i === messages.length - 1;
+    if (streaming && isLast) return '/lau-thinking.png';
+    if (justFinishedIndex === i) return '/lau-excited.png';
+    return '/lau-reading.png';
+  }
+
   function newChat() {
     sessionStorage.removeItem(SESSION_KEY);
     setMessages([]);
@@ -152,19 +166,12 @@ function ChatPageInner() {
         <div style={{ maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
 
           {messages.length === 0 && (
-            <div style={{ margin: '48px auto 0', maxWidth: 480, textAlign: 'center' }}>
-              <div style={{
-                width: 64, height: 64, borderRadius: 20,
-                background: `linear-gradient(135deg, ${C.verde}, ${C.verdeMid})`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                margin: '0 auto 20px',
-                boxShadow: `0 4px 24px ${C.verdeGlow}`,
-              }}>
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-                  <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" fill="white" opacity="0.9"/>
-                  <path d="M7 9h10M7 13h7" stroke="rgba(58,110,40,0.8)" strokeWidth="1.5" strokeLinecap="round"/>
-                </svg>
-              </div>
+            <div style={{ margin: '24px auto 0', maxWidth: 480, textAlign: 'center' }}>
+              <img
+                src="/lau-reading.png"
+                alt="Lau, el asistente virtual"
+                style={{ height: 150, width: 'auto', margin: '0 auto 12px', display: 'block' }}
+              />
               <h2 style={{ fontSize: 20, fontWeight: 700, color: C.texto, marginBottom: 10 }}>
                 Asistente de Cátedra
               </h2>
@@ -215,13 +222,16 @@ function ChatPageInner() {
               marginTop: i > 0 && messages[i - 1].role !== msg.role ? 12 : 2,
             }}>
               {msg.role === 'assistant' && (
-                <div style={{
-                  width: 28, height: 28, borderRadius: '50%',
-                  background: `linear-gradient(135deg, ${C.verde}, ${C.verdeMid})`,
-                  color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 10, fontWeight: 700, flexShrink: 0, marginBottom: 2,
-                  opacity: i === messages.length - 1 || messages[i + 1]?.role !== 'assistant' ? 1 : 0,
-                }}>AI</div>
+                <img
+                  src={lauPoseFor(i)}
+                  alt="Lau"
+                  style={{
+                    width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', objectPosition: 'top center',
+                    flexShrink: 0, marginBottom: 2, border: `1px solid ${C.grisBorde}`,
+                    opacity: i === messages.length - 1 || messages[i + 1]?.role !== 'assistant' ? 1 : 0,
+                    transition: 'opacity 0.2s',
+                  }}
+                />
               )}
 
               <div style={{

@@ -40,6 +40,17 @@ export default function RegisterPage() {
                      radial-gradient(ellipse at 80% 20%, rgba(90,144,67,0.07) 0%, transparent 50%)`,
       }} />
 
+      {/* Lau, asomando en la esquina */}
+      <img
+        src="/lau-reading.png"
+        alt=""
+        aria-hidden="true"
+        style={{
+          position: 'fixed', bottom: -16, right: -8, height: 'clamp(110px, 20vw, 200px)', width: 'auto',
+          pointerEvents: 'none', zIndex: 0,
+        }}
+      />
+
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 16px', position: 'relative', zIndex: 1 }}>
         <div style={{ width: '100%', maxWidth: 420 }}>
 

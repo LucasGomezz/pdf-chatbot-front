@@ -47,7 +47,7 @@ export default function HistoryPage() {
             padding: '48px 24px', textAlign: 'center',
             boxShadow: C.sombra,
           }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>💬</div>
+            <img src="/lau-reading.png" alt="Lau" style={{ height: 100, width: 'auto', margin: '0 auto 12px', display: 'block' }} />
             <p style={{ fontWeight: 600, color: C.texto, marginBottom: 6 }}>Sin consultas todavía</p>
             <p style={{ fontSize: 13, color: C.textoSuave }}>Tus consultas al asistente aparecerán acá.</p>
           </div>
