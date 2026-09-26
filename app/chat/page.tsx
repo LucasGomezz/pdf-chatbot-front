@@ -178,7 +178,7 @@ function ChatPageInner() {
 
           {/* Lau, personaje fijo a la izquierda mientras dura la conversación */}
           <div className="lau-companion" style={{
-            position: 'sticky', top: 0, flexShrink: 0, width: 170,
+            position: 'sticky', top: 0, flexShrink: 0, width: 190,
             flexDirection: 'column', alignItems: 'center', paddingTop: 4,
           }}>
             <img
@@ -186,6 +186,18 @@ function ChatPageInner() {
               alt="Lau, el asistente virtual"
               style={{ height: 190, width: 'auto', transition: 'opacity 0.15s' }}
             />
+            {messages.length > 0 && !streaming && !justFinished && (
+              <div style={{ position: 'relative', marginTop: 14 }}>
+                <div style={{
+                  background: '#fff', border: `1px solid ${C.grisBorde}`, borderRadius: 14,
+                  padding: '10px 14px', boxShadow: C.sombra, maxWidth: 180, textAlign: 'center',
+                }}>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.texto }}>¿Alguna otra duda?</p>
+                  <p style={{ margin: '3px 0 0', fontSize: 12, color: C.textoMedio }}>Preguntame lo que quieras 🙂</p>
+                </div>
+                <span style={{ position: 'absolute', left: '50%', top: -6, width: 8, height: 8, borderRadius: '50%', background: '#fff', border: `1px solid ${C.grisBorde}`, transform: 'translateX(-50%)' }} />
+              </div>
+            )}
           </div>
 
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
