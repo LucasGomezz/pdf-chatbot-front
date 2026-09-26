@@ -50,3 +50,10 @@ body {
 .md-content pre code { background: none; padding: 0; }
 .md-content blockquote { border-left: 3px solid #d1d5db; margin: 8px 0; padding-left: 12px; color: #6b7280; }
 .md-content a { color: #3a6e28; text-decoration: underline; }
+
+/* Lau companion in the chat screen: hidden on narrow viewports so she
+   doesn't crowd the conversation on mobile. */
+.lau-companion { display: flex; }
+@media (max-width: 680px) {
+  .lau-companion { display: none; }
+}
