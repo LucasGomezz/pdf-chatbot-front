@@ -150,7 +150,9 @@ function ChatPageInner() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQuestion(); }
   }
 
-  const lauPose = streaming
+  const lauPose = limitMessage
+    ? '/lau-limit.png'
+    : streaming
     ? '/lau-thinking.png'
     : justFinished
     ? '/lau-excited.png'
@@ -186,7 +188,22 @@ function ChatPageInner() {
               alt="Lau, el asistente virtual"
               style={{ height: 190, width: 'auto', transition: 'opacity 0.15s' }}
             />
-            {messages.length > 0 && !streaming && !justFinished && (
+            {limitMessage ? (
+              <div style={{ position: 'relative', marginTop: 14 }}>
+                <div style={{
+                  background: '#fdf6e8', border: '1px solid #e8d8a8', borderRadius: 14,
+                  padding: '10px 14px', boxShadow: C.sombra, maxWidth: 180, textAlign: 'center',
+                }}>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#7a5c10' }}>
+                    {limitReason === 'user' ? 'Sin consultas por hoy 😅' : 'Límite del día alcanzado'}
+                  </p>
+                  <p style={{ margin: '3px 0 0', fontSize: 12, color: '#8a6d20' }}>
+                    {limitReason === 'user' ? 'Volvé mañana' : 'Volvé más tarde'}
+                  </p>
+                </div>
+                <span style={{ position: 'absolute', left: '50%', top: -6, width: 8, height: 8, borderRadius: '50%', background: '#fdf6e8', border: '1px solid #e8d8a8', transform: 'translateX(-50%)' }} />
+              </div>
+            ) : messages.length > 0 && !streaming && !justFinished && (
               <div style={{ position: 'relative', marginTop: 14 }}>
                 <div style={{
                   background: '#fff', border: `1px solid ${C.grisBorde}`, borderRadius: 14,
@@ -308,20 +325,17 @@ function ChatPageInner() {
           {limitMessage && (
             <div style={{
               background: '#fdf6e8', border: '1px solid #e8d8a8', borderRadius: 12,
-              padding: '14px 18px', margin: '8px 0', display: 'flex', gap: 14, alignItems: 'center',
+              padding: '14px 18px', margin: '8px 0',
               boxShadow: C.sombra,
             }}>
-              <img src="/lau-limit.png" alt="" style={{ height: 90, width: 'auto', flexShrink: 0 }} />
-              <div>
-                <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#7a5c10' }}>
-                  {limitReason === 'user' ? '¡Te quedaste sin consultas por hoy!' : 'El asistente llegó a su límite de uso por hoy'}
-                </p>
-                <p style={{ margin: '4px 0 0', fontSize: 13, color: '#8a6d20' }}>
-                  {limitReason === 'user'
-                    ? 'Podés pedirle a algún compañero que te ayude, o volvé a probar mañana.'
-                    : limitMessage}
-                </p>
-              </div>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#7a5c10' }}>
+                {limitReason === 'user' ? '¡Te quedaste sin consultas por hoy!' : 'El asistente llegó a su límite de uso por hoy'}
+              </p>
+              <p style={{ margin: '4px 0 0', fontSize: 13, color: '#8a6d20' }}>
+                {limitReason === 'user'
+                  ? 'Podés pedirle a algún compañero que te ayude, o volvé a probar mañana.'
+                  : limitMessage}
+              </p>
             </div>
           )}
           <div ref={bottomRef} />
