@@ -9,8 +9,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" style={{ height: '100%' }}>
-      <body style={{ height: '100%' }}>
+    <html lang="es" style={{ height: '100%' }} suppressHydrationWarning>
+      <body style={{ height: '100%' }} suppressHydrationWarning>
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
