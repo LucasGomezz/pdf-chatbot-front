@@ -9,6 +9,16 @@ import Navbar from '@/components/Navbar';
 import AdminTabs, { AdminTab } from '@/components/AdminTabs';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+// Duración mínima de la pose "pensando" en las acciones de alumnos, que suelen
+// ser casi instantáneas — así se alcanza a notar el cambio de animación.
+const MIN_ACTION_MS = 900;
+
+function withMinDelay<T>(promise: Promise<T>, start: number, min: number): Promise<T> {
+  return promise.then((result) => {
+    const remaining = Math.max(0, min - (Date.now() - start));
+    return new Promise((resolve) => setTimeout(() => resolve(result), remaining));
+  });
+}
 
 interface DocItem {
   _id: string;
@@ -18,29 +28,31 @@ interface DocItem {
   ingestedAt: string;
 }
 
-type LauUploadStatus = 'idle' | 'uploading' | 'success';
+export type LauStatus = 'idle' | 'busy' | 'success';
 
 export default function AdminPage() {
   const { user, loading, token } = useAuth();
   const router = useRouter();
   const [tab, setTab] = useState<AdminTab>('documents');
-  const [uploadStatus, setUploadStatus] = useState<LauUploadStatus>('idle');
+  const [lauStatus, setLauStatus] = useState<LauStatus>('idle');
+  const [hasInteracted, setHasInteracted] = useState(false);
 
   useEffect(() => {
     if (!loading && (!user || user.role !== 'admin')) router.push('/chat');
   }, [user, loading, router]);
 
-  function reportUpload(status: LauUploadStatus) {
-    setUploadStatus(status);
+  function reportActivity(status: LauStatus) {
+    setLauStatus(status);
+    if (status === 'busy') setHasInteracted(true);
     if (status === 'success') {
-      setTimeout(() => setUploadStatus((cur) => (cur === 'success' ? 'idle' : cur)), 2500);
+      setTimeout(() => setLauStatus((cur) => (cur === 'success' ? 'idle' : cur)), 2500);
     }
   }
 
   if (loading || !user || user.role !== 'admin') return null;
 
-  const lauPose = uploadStatus === 'uploading' ? '/lau-thinking.png'
-    : uploadStatus === 'success' ? '/lau-success.png'
+  const lauPose = lauStatus === 'busy' ? '/lau-thinking.png'
+    : lauStatus === 'success' ? '/lau-success.png'
     : '/lau-folder.png';
 
   return (
@@ -64,17 +76,28 @@ export default function AdminPage() {
             alt="Lau"
             style={{ height: 130, width: 'auto', flexShrink: 0, transition: 'opacity 0.15s' }}
           />
-          <div style={{ position: 'relative', marginTop: 10 }}>
-            <div style={{
-              background: '#fff', border: `1px solid ${C.grisBorde}`, borderRadius: 16,
-              padding: '12px 18px', boxShadow: C.sombra, maxWidth: 320,
-            }}>
-              <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.texto }}>¡Hola! Soy Lau 👋</p>
-              <p style={{ margin: '4px 0 0', fontSize: 13, color: C.textoMedio }}>¿En qué puedo ayudarte hoy?</p>
+          {lauStatus === 'idle' && (
+            <div style={{ position: 'relative', marginTop: 10 }}>
+              <div style={{
+                background: '#fff', border: `1px solid ${C.grisBorde}`, borderRadius: 16,
+                padding: '12px 18px', boxShadow: C.sombra, maxWidth: 320,
+              }}>
+                {hasInteracted ? (
+                  <>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.texto }}>¿En qué seguimos? 🙂</p>
+                    <p style={{ margin: '4px 0 0', fontSize: 13, color: C.textoMedio }}>Contame si necesitás algo más.</p>
+                  </>
+                ) : (
+                  <>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.texto }}>¡Hola! Soy Lau 👋</p>
+                    <p style={{ margin: '4px 0 0', fontSize: 13, color: C.textoMedio }}>¿En qué puedo ayudarte hoy?</p>
+                  </>
+                )}
+              </div>
+              <span style={{ position: 'absolute', left: -10, bottom: 6, width: 9, height: 9, borderRadius: '50%', background: '#fff', border: `1px solid ${C.grisBorde}` }} />
+              <span style={{ position: 'absolute', left: -19, bottom: 0, width: 5, height: 5, borderRadius: '50%', background: '#fff', border: `1px solid ${C.grisBorde}` }} />
             </div>
-            <span style={{ position: 'absolute', left: -10, bottom: 6, width: 9, height: 9, borderRadius: '50%', background: '#fff', border: `1px solid ${C.grisBorde}` }} />
-            <span style={{ position: 'absolute', left: -19, bottom: 0, width: 5, height: 5, borderRadius: '50%', background: '#fff', border: `1px solid ${C.grisBorde}` }} />
-          </div>
+          )}
         </div>
 
         <AdminTabs active={tab} onChange={setTab} />
@@ -82,10 +105,10 @@ export default function AdminPage() {
         {/* Ambas secciones quedan montadas siempre; se ocultan con CSS para que
             cambiar de pestaña no dispare una recarga de datos ni de navegación. */}
         <div style={{ display: tab === 'documents' ? 'block' : 'none' }}>
-          <DocumentsSection token={token} onUploadStatusChange={reportUpload} />
+          <DocumentsSection token={token} onActivity={reportActivity} />
         </div>
         <div style={{ display: tab === 'students' ? 'block' : 'none' }}>
-          <StudentsSection token={token} />
+          <StudentsSection token={token} onActivity={reportActivity} />
         </div>
       </main>
 
@@ -96,7 +119,7 @@ export default function AdminPage() {
   );
 }
 
-function DocumentsSection({ token, onUploadStatusChange }: { token: string | null; onUploadStatusChange: (status: LauUploadStatus) => void }) {
+function DocumentsSection({ token, onActivity }: { token: string | null; onActivity: (status: LauStatus) => void }) {
   const [docs, setDocs] = useState<DocItem[]>([]);
   const [fetching, setFetching] = useState(true);
   const [status, setStatus] = useState<{ msg: string; ok: boolean } | null>(null);
@@ -159,7 +182,7 @@ function DocumentsSection({ token, onUploadStatusChange }: { token: string | nul
     if (!file) return;
     setBusy(true);
     setStatus(null);
-    onUploadStatusChange('uploading');
+    onActivity('busy');
     try {
       const form = new FormData();
       form.append('file', file);
@@ -173,13 +196,13 @@ function DocumentsSection({ token, onUploadStatusChange }: { token: string | nul
         throw new Error(body.message || `HTTP ${res.status}`);
       }
       setStatus({ msg: 'Archivo subido e ingesta completada correctamente.', ok: true });
-      onUploadStatusChange('success');
+      onActivity('success');
       loadDocs();
       if (fileRef.current) fileRef.current.value = '';
       setFileName('');
     } catch (err: any) {
       setStatus({ msg: `Error: ${err.message}`, ok: false });
-      onUploadStatusChange('idle');
+      onActivity('idle');
     } finally {
       setBusy(false);
     }
@@ -328,7 +351,7 @@ function DocumentsSection({ token, onUploadStatusChange }: { token: string | nul
   );
 }
 
-function StudentsSection({ token }: { token: string | null }) {
+function StudentsSection({ token, onActivity }: { token: string | null; onActivity: (status: LauStatus) => void }) {
   const [emails, setEmails] = useState<string[]>([]);
   const [fetching, setFetching] = useState(true);
   const [status, setStatus] = useState<{ msg: string; ok: boolean } | null>(null);
@@ -373,18 +396,25 @@ function StudentsSection({ token }: { token: string | null }) {
     if (list.length === 0) return;
     setBusy(true);
     setStatus(null);
+    onActivity('busy');
+    const start = Date.now();
     try {
-      const result = await apiFetch<{ added: number; skipped: number }>('/admin/students', {
-        method: 'POST',
-        body: JSON.stringify({ emails: list }),
-      });
+      const result = await withMinDelay(
+        apiFetch<{ added: number; skipped: number }>('/admin/students', {
+          method: 'POST',
+          body: JSON.stringify({ emails: list }),
+        }),
+        start, MIN_ACTION_MS,
+      );
       const parts = [`${result.added} agregado(s)`];
       if (result.skipped > 0) parts.push(`${result.skipped} ya estaba(n) o no era(n) válido(s)`);
       setStatus({ msg: parts.join(', ') + '.', ok: true });
+      onActivity('success');
       setAddValue('');
       loadEmails();
     } catch (err: any) {
       setStatus({ msg: `Error: ${err.message}`, ok: false });
+      onActivity('idle');
     } finally {
       setBusy(false);
     }
@@ -395,27 +425,33 @@ function StudentsSection({ token }: { token: string | null }) {
     if (!file) return;
     setBusy(true);
     setStatus(null);
+    onActivity('busy');
+    const start = Date.now();
     try {
-      const form = new FormData();
-      form.append('file', file);
-      const res = await fetch(`${BASE}/admin/students/upload`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: form,
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || `HTTP ${res.status}`);
-      }
-      const result = await res.json();
+      const result = await withMinDelay((async () => {
+        const form = new FormData();
+        form.append('file', file);
+        const res = await fetch(`${BASE}/admin/students/upload`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: form,
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.message || `HTTP ${res.status}`);
+        }
+        return res.json();
+      })(), start, MIN_ACTION_MS);
       const parts = [`${result.added} agregado(s)`];
       if (result.skipped > 0) parts.push(`${result.skipped} ya estaba(n) o no era(n) válido(s)`);
       setStatus({ msg: parts.join(', ') + '.', ok: true });
+      onActivity('success');
       loadEmails();
       if (fileRef.current) fileRef.current.value = '';
       setFileName('');
     } catch (err: any) {
       setStatus({ msg: `Error: ${err.message}`, ok: false });
+      onActivity('idle');
     } finally {
       setBusy(false);
     }
