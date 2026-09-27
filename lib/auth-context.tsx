@@ -7,6 +7,7 @@ interface AuthUser {
   id: string;
   email: string;
   role: 'student' | 'admin';
+  isSuperAdmin?: boolean;
 }
 
 interface AuthCtx {

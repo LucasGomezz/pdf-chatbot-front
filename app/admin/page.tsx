@@ -351,8 +351,15 @@ function DocumentsSection({ token, onActivity }: { token: string | null; onActiv
   );
 }
 
+interface StudentEntry {
+  email: string;
+  isAdmin: boolean;
+}
+
 function StudentsSection({ token, onActivity }: { token: string | null; onActivity: (status: LauStatus) => void }) {
-  const [emails, setEmails] = useState<string[]>([]);
+  const { user } = useAuth();
+  const isSuperAdmin = !!user?.isSuperAdmin;
+  const [emails, setEmails] = useState<StudentEntry[]>([]);
   const [fetching, setFetching] = useState(true);
   const [status, setStatus] = useState<{ msg: string; ok: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -365,7 +372,7 @@ function StudentsSection({ token, onActivity }: { token: string | null; onActivi
   const fileRef = useRef<HTMLInputElement>(null);
 
   function loadEmails() {
-    apiFetch<string[]>('/admin/students')
+    apiFetch<StudentEntry[]>('/admin/students')
       .then((list) => { setEmails(list); setSelected(new Set()); })
       .catch(console.error)
       .finally(() => setFetching(false));
@@ -376,7 +383,7 @@ function StudentsSection({ token, onActivity }: { token: string | null; onActivi
   const filteredEmails = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return emails;
-    return emails.filter((e) => e.includes(q));
+    return emails.filter((e) => e.email.includes(q));
   }, [emails, search]);
 
   function toggleOne(email: string) {
@@ -388,7 +395,7 @@ function StudentsSection({ token, onActivity }: { token: string | null; onActivi
   }
 
   function toggleAll() {
-    setSelected((prev) => (prev.size === filteredEmails.length ? new Set() : new Set(filteredEmails)));
+    setSelected((prev) => (prev.size === filteredEmails.length ? new Set() : new Set(filteredEmails.map((e) => e.email))));
   }
 
   async function addEmails() {
@@ -494,6 +501,23 @@ function StudentsSection({ token, onActivity }: { token: string | null; onActivi
     try {
       await apiFetch(`/admin/students/${encodeURIComponent(email)}`, { method: 'DELETE' });
       setStatus({ msg: `${email} eliminado de la lista.`, ok: true });
+      loadEmails();
+    } catch (err: any) {
+      setStatus({ msg: `Error: ${err.message}`, ok: false });
+    }
+  }
+
+  async function promoteEmail(email: string, makeAdmin: boolean) {
+    if (!confirm(makeAdmin
+      ? `¿Darle permisos de administrador a ${email}? Va a poder cargar material y gestionar alumnos.`
+      : `¿Sacarle los permisos de administrador a ${email}?`)) return;
+    setStatus(null);
+    try {
+      await apiFetch(`/admin/students/${encodeURIComponent(email)}/admin`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isAdmin: makeAdmin }),
+      });
+      setStatus({ msg: makeAdmin ? `${email} ahora es administrador.` : `${email} ya no es administrador.`, ok: true });
       loadEmails();
     } catch (err: any) {
       setStatus({ msg: `Error: ${err.message}`, ok: false });
@@ -685,18 +709,18 @@ function StudentsSection({ token, onActivity }: { token: string | null; onActivi
             <input type="checkbox" checked={selected.size === filteredEmails.length} onChange={toggleAll} />
             <span style={{ fontSize: 12, color: C.verdeDark, fontWeight: 600 }}>Seleccionar todos</span>
           </div>
-          {filteredEmails.map((email, i) => (
-            <div key={email} style={{
+          {filteredEmails.map((entry, i) => (
+            <div key={entry.email} style={{
               display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px',
               borderBottom: i < filteredEmails.length - 1 ? `1px solid ${C.grisBorde}` : 'none',
             }}>
-              {editingEmail === email ? (
+              {editingEmail === entry.email ? (
                 <>
                   <input
                     type="email"
                     value={editValue}
                     onChange={(e) => setEditValue(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(email); if (e.key === 'Escape') cancelEdit(); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(entry.email); if (e.key === 'Escape') cancelEdit(); }}
                     autoFocus
                     style={{
                       flex: 1, fontSize: 13, fontFamily: 'monospace', padding: '5px 8px',
@@ -704,7 +728,7 @@ function StudentsSection({ token, onActivity }: { token: string | null; onActivi
                     }}
                   />
                   <button
-                    onClick={() => saveEdit(email)} disabled={busy}
+                    onClick={() => saveEdit(entry.email)} disabled={busy}
                     style={{ background: C.verde, color: 'white', border: 'none', borderRadius: 4, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
                   >
                     Guardar
@@ -718,17 +742,38 @@ function StudentsSection({ token, onActivity }: { token: string | null; onActivi
                 </>
               ) : (
                 <>
-                  <input type="checkbox" checked={selected.has(email)} onChange={() => toggleOne(email)} />
-                  <span style={{ flex: 1, fontSize: 13, fontFamily: 'monospace', color: C.texto }}>{email}</span>
+                  <input type="checkbox" checked={selected.has(entry.email)} onChange={() => toggleOne(entry.email)} />
+                  <span style={{ flex: 1, fontSize: 13, fontFamily: 'monospace', color: C.texto }}>{entry.email}</span>
+                  {entry.isAdmin && (
+                    <span style={{
+                      background: C.verdeLight, color: C.verdeDark, borderRadius: 10,
+                      padding: '2px 8px', fontSize: 10, fontWeight: 700,
+                    }}>
+                      ADMIN
+                    </span>
+                  )}
+                  {isSuperAdmin && (
+                    <button
+                      onClick={() => promoteEmail(entry.email, !entry.isAdmin)}
+                      title={entry.isAdmin ? 'Sacar permisos de administrador' : 'Dar permisos de administrador'}
+                      style={{
+                        background: 'transparent', border: `1px solid ${entry.isAdmin ? '#e8c0c0' : '#c8dfc0'}`,
+                        color: entry.isAdmin ? '#c0392b' : C.verdeDark,
+                        borderRadius: 4, padding: '4px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+                      }}
+                    >
+                      {entry.isAdmin ? 'Quitar admin' : 'Hacer admin'}
+                    </button>
+                  )}
                   <button
-                    onClick={() => startEdit(email)}
+                    onClick={() => startEdit(entry.email)}
                     title="Editar"
                     style={{ background: 'transparent', border: `1px solid ${C.grisBorde}`, color: C.textoMedio, borderRadius: 4, padding: '4px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}
                   >
                     Editar
                   </button>
                   <button
-                    onClick={() => removeEmail(email)}
+                    onClick={() => removeEmail(entry.email)}
                     title="Sacar de la lista"
                     style={{ background: 'transparent', border: '1px solid #e8c0c0', color: '#c0392b', borderRadius: 4, padding: '4px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}
                   >
