@@ -46,6 +46,14 @@ interface IngestProgress {
   retryAfterMs?: number;
 }
 
+function LoadingBox({ text }: { text: string }) {
+  return (
+    <div style={{ background: 'white', border: `1px solid ${C.grisBorde}`, borderRadius: 4, padding: 20, textAlign: 'center', color: C.textoSuave, fontSize: 14 }}>
+      {text}
+    </div>
+  );
+}
+
 async function postMultipart<T>(path: string, form: FormData, token: string | null): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
@@ -319,8 +327,6 @@ function DocumentsSection({ token, onActivity }: { token: string | null; onActiv
     runIngest(() => apiFetch<IngestProgress>(`/admin/documents/${doc._id}/process`, { method: 'POST' }));
   }
 
-  if (fetching) return null;
-
   return (
     <>
       {/* Subir archivo */}
@@ -408,7 +414,9 @@ function DocumentsSection({ token, onActivity }: { token: string | null; onActiv
         )}
       </div>
 
-      {docs.length === 0 ? (
+      {fetching ? (
+        <LoadingBox text="Cargando documentos..." />
+      ) : docs.length === 0 ? (
         <div style={{ background: 'white', border: `1px solid ${C.grisBorde}`, borderRadius: 4, padding: 20, textAlign: 'center', color: C.textoSuave, fontSize: 14 }}>
           No hay documentos ingresados aún.
         </div>
@@ -689,8 +697,6 @@ function StudentsSection({ token, onActivity, emails, loaded, reload }: EntriesP
     }
   }
 
-  if (!loaded) return null;
-
   return (
     <>
       {/* Agregar alumnos */}
@@ -782,7 +788,7 @@ function StudentsSection({ token, onActivity, emails, loaded, reload }: EntriesP
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
         <div style={{ borderLeft: `5px solid ${C.verde}`, paddingLeft: 14 }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, color: C.verdeDark, margin: 0 }}>
-            Alumnos autorizados ({emails.length})
+            Alumnos autorizados ({loaded ? emails.length : '…'})
           </h2>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -826,7 +832,9 @@ function StudentsSection({ token, onActivity, emails, loaded, reload }: EntriesP
         />
       )}
 
-      {emails.length === 0 ? (
+      {!loaded ? (
+        <LoadingBox text="Cargando alumnos..." />
+      ) : emails.length === 0 ? (
         <div style={{ background: 'white', border: `1px solid ${C.grisBorde}`, borderRadius: 4, padding: 20, textAlign: 'center', color: C.textoSuave, fontSize: 14 }}>
           No hay ningún email autorizado todavía. Los alumnos no van a poder registrarse hasta que agregues alguno.
         </div>
@@ -980,8 +988,6 @@ function TeachersSection({ onActivity, teachers, loaded, reload }: EntriesProps 
     }
   }
 
-  if (!loaded) return null;
-
   return (
     <>
       {isSuperAdmin && (
@@ -1027,7 +1033,7 @@ function TeachersSection({ onActivity, teachers, loaded, reload }: EntriesProps 
 
       <div style={{ borderLeft: `5px solid ${C.verde}`, paddingLeft: 14, marginBottom: 16 }}>
         <h2 style={{ fontSize: 16, fontWeight: 700, color: C.verdeDark, margin: 0 }}>
-          Docentes de cátedra ({teachers.length})
+          Docentes de cátedra ({loaded ? teachers.length : '…'})
         </h2>
         {!isSuperAdmin && (
           <p style={{ fontSize: 12, color: C.textoSuave, margin: '4px 0 0' }}>
@@ -1036,7 +1042,9 @@ function TeachersSection({ onActivity, teachers, loaded, reload }: EntriesProps 
         )}
       </div>
 
-      {teachers.length === 0 ? (
+      {!loaded ? (
+        <LoadingBox text="Cargando docentes..." />
+      ) : teachers.length === 0 ? (
         <div style={{ background: 'white', border: `1px solid ${C.grisBorde}`, borderRadius: 4, padding: 20, textAlign: 'center', color: C.textoSuave, fontSize: 14 }}>
           Todavía no hay docentes asignados.
         </div>

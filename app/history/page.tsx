@@ -13,6 +13,10 @@ interface HistoryItem {
   createdAt: string; sources: { heading: string }[];
 }
 
+// Última lista vista, por usuario: al volver a Historial se muestra al instante
+// y se actualiza en segundo plano.
+let historyCache: { userId: string; items: HistoryItem[] } | null = null;
+
 export default function HistoryPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -23,11 +27,20 @@ export default function HistoryPage() {
   useEffect(() => { if (!loading && !user) router.push('/login'); }, [user, loading, router]);
   useEffect(() => {
     if (!user) return;
+    if (historyCache?.userId === user.id) {
+      setItems(historyCache.items);
+      setFetching(false);
+    }
     apiFetch<HistoryItem[]>('/chat/history?limit=30')
-      .then(setItems).catch(console.error).finally(() => setFetching(false));
+      .then((list) => {
+        historyCache = { userId: user.id, items: list };
+        setItems(list);
+      })
+      .catch(console.error)
+      .finally(() => setFetching(false));
   }, [user]);
 
-  if (loading || fetching) return null;
+  if (loading) return null;
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: C.gris }}>
@@ -41,7 +54,14 @@ export default function HistoryPage() {
           <p style={{ fontSize: 13, color: C.textoSuave }}>Últimas 30 consultas realizadas</p>
         </div>
 
-        {items.length === 0 ? (
+        {fetching ? (
+          <div style={{
+            background: '#fff', borderRadius: 12, border: `1px solid ${C.grisBorde}`,
+            padding: '32px 24px', textAlign: 'center', color: C.textoSuave, fontSize: 14, boxShadow: C.sombra,
+          }}>
+            Cargando tu historial...
+          </div>
+        ) : items.length === 0 ? (
           <div style={{
             background: '#fff', borderRadius: 12, border: `1px solid ${C.grisBorde}`,
             padding: '48px 24px', textAlign: 'center',
