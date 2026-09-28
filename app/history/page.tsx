@@ -7,6 +7,8 @@ import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
 import { C } from '@/lib/colors';
 import Navbar from '@/components/Navbar';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface HistoryItem {
   _id: string; question: string; answer: string;
@@ -106,7 +108,7 @@ export default function HistoryPage() {
                     </div>
 
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontWeight: 600, fontSize: 14, color: C.texto, marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <p className="hist-question" style={{ fontWeight: 600, fontSize: 14, color: C.texto, marginBottom: 2 }}>
                         {item.question}
                       </p>
                       <p style={{ fontSize: 12, color: C.textoSuave }}>{dateStr}</p>
@@ -137,9 +139,9 @@ export default function HistoryPage() {
 
                   {isOpen && (
                     <div style={{ padding: '0 20px 20px', borderTop: `1px solid ${C.grisBorde}` }}>
-                      <p style={{ fontSize: 13, color: C.textoMedio, whiteSpace: 'pre-wrap', marginTop: 16, lineHeight: 1.75 }}>
-                        {item.answer}
-                      </p>
+                      <div className="md-content" style={{ fontSize: 13, color: C.textoMedio, marginTop: 16, lineHeight: 1.75 }}>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.answer}</ReactMarkdown>
+                      </div>
                       {item.sources?.length > 0 && (
                         <div style={{ marginTop: 14, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                           {item.sources.map((s, i) => (

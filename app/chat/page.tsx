@@ -182,59 +182,71 @@ function ChatPageInner() {
 
   if (loading) return null;
 
+  // Lau con su pose y globito. Se dibuja en dos lugares: a la izquierda de la
+  // conversación en pantallas anchas, y en una franja fija arriba en celulares.
+  const lauCompanion = (
+    <>
+      <img src={lauPose} alt="Lau, el asistente virtual" className="lau-img" />
+      {limitMessage ? (
+        <div className="lau-bubble">
+          <div style={{
+            background: '#fdf6e8', border: '1px solid #e8d8a8', borderRadius: 14,
+            padding: '10px 14px', boxShadow: C.sombra,
+          }} className="lau-bubble-box">
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#7a5c10' }}>
+              {limitReason === 'user' ? 'Sin consultas por hoy' : 'Límite del día alcanzado'}
+            </p>
+            <p style={{ margin: '3px 0 0', fontSize: 12, color: '#8a6d20' }}>
+              {limitReason === 'user' ? 'Podemos seguir mañana' : 'Volvé más tarde'}
+            </p>
+          </div>
+          <span className="lau-tail" style={{ position: 'absolute', left: '50%', top: -6, width: 8, height: 8, borderRadius: '50%', background: '#fdf6e8', border: '1px solid #e8d8a8', transform: 'translateX(-50%)' }} />
+        </div>
+      ) : messages.length === 0 ? (
+        <div className="lau-bubble lau-greeting">
+          <div style={{
+            background: '#fff', border: `1px solid ${C.grisBorde}`, borderRadius: 14,
+            padding: '10px 14px', boxShadow: C.sombra,
+          }} className="lau-bubble-box">
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.texto }}>¡Hola! Soy Lau 👋</p>
+            <p style={{ margin: '3px 0 0', fontSize: 13, color: C.textoMedio }}>¿En qué puedo ayudarte hoy?</p>
+          </div>
+        </div>
+      ) : !streaming && !justFinished && (
+        <div className="lau-bubble">
+          <div style={{
+            background: '#fff', border: `1px solid ${C.grisBorde}`, borderRadius: 14,
+            padding: '10px 14px', boxShadow: C.sombra,
+          }} className="lau-bubble-box">
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.texto }}>¿Alguna otra duda?</p>
+            <p style={{ margin: '3px 0 0', fontSize: 12, color: C.textoMedio }}>Preguntame lo que quieras 🙂</p>
+          </div>
+          <span className="lau-tail" style={{ position: 'absolute', left: '50%', top: -6, width: 8, height: 8, borderRadius: '50%', background: '#fff', border: `1px solid ${C.grisBorde}`, transform: 'translateX(-50%)' }} />
+        </div>
+      )}
+    </>
+  );
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: C.gris }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', background: C.gris }}>
       <Navbar />
+
+      {/* En celular, Lau va en una franja fija entre el header y la conversación */}
+      <div className={`lau-strip${messages.length === 0 ? ' lau-strip--intro' : ''}`}>{lauCompanion}</div>
 
       {/* Message list */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px 16px 8px' }}>
-        <div style={{ maxWidth: 940, margin: '0 auto', display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+        <div className="chat-layout" style={{ maxWidth: 940, margin: '0 auto' }}>
 
-          {/* Lau, personaje fijo a la izquierda mientras dura la conversación */}
-          <div className="lau-companion" style={{
-            position: 'sticky', top: 0, flexShrink: 0, width: 190,
-            flexDirection: 'column', alignItems: 'center', paddingTop: 4,
-          }}>
-            <img
-              src={lauPose}
-              alt="Lau, el asistente virtual"
-              style={{ height: 190, width: 'auto', transition: 'opacity 0.15s' }}
-            />
-            {limitMessage ? (
-              <div style={{ position: 'relative', marginTop: 14 }}>
-                <div style={{
-                  background: '#fdf6e8', border: '1px solid #e8d8a8', borderRadius: 14,
-                  padding: '10px 14px', boxShadow: C.sombra, maxWidth: 180, textAlign: 'center',
-                }}>
-                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#7a5c10' }}>
-                    {limitReason === 'user' ? 'Sin consultas por hoy' : 'Límite del día alcanzado'}
-                  </p>
-                  <p style={{ margin: '3px 0 0', fontSize: 12, color: '#8a6d20' }}>
-                    {limitReason === 'user' ? 'Podemos seguir mañana' : 'Volvé más tarde'}
-                  </p>
-                </div>
-                <span style={{ position: 'absolute', left: '50%', top: -6, width: 8, height: 8, borderRadius: '50%', background: '#fdf6e8', border: '1px solid #e8d8a8', transform: 'translateX(-50%)' }} />
-              </div>
-            ) : messages.length > 0 && !streaming && !justFinished && (
-              <div style={{ position: 'relative', marginTop: 14 }}>
-                <div style={{
-                  background: '#fff', border: `1px solid ${C.grisBorde}`, borderRadius: 14,
-                  padding: '10px 14px', boxShadow: C.sombra, maxWidth: 180, textAlign: 'center',
-                }}>
-                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.texto }}>¿Alguna otra duda?</p>
-                  <p style={{ margin: '3px 0 0', fontSize: 12, color: C.textoMedio }}>Preguntame lo que quieras 🙂</p>
-                </div>
-                <span style={{ position: 'absolute', left: '50%', top: -6, width: 8, height: 8, borderRadius: '50%', background: '#fff', border: `1px solid ${C.grisBorde}`, transform: 'translateX(-50%)' }} />
-              </div>
-            )}
-          </div>
+          {/* Lau, fija a la izquierda de la conversación */}
+          <div className="lau-companion">{lauCompanion}</div>
 
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
 
           {messages.length === 0 && (
             <div style={{ margin: '12px 0 0', maxWidth: 480 }}>
-              {/* Globo de diálogo, con una nube de puntitos hacia Lau */}
-              <div style={{ position: 'relative', display: 'inline-block', marginBottom: 24 }}>
+              {/* Globo de diálogo, con una nube de puntitos hacia Lau (en celular el saludo va en la franja) */}
+              <div className="chat-greeting" style={{ position: 'relative', display: 'inline-block', marginBottom: 24 }}>
                 <div style={{
                   background: '#fff', border: `1px solid ${C.grisBorde}`, borderRadius: 18,
                   padding: '14px 20px', boxShadow: C.sombra,
@@ -295,8 +307,7 @@ function ChatPageInner() {
               gap: 8,
               marginTop: i > 0 && messages[i - 1].role !== msg.role ? 12 : 2,
             }}>
-              <div style={{
-                maxWidth: '72%',
+              <div className="msg-bubble" style={{
                 background: msg.role === 'user' ? C.verde : '#fff',
                 color: msg.role === 'user' ? '#fff' : C.texto,
                 borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
@@ -401,7 +412,7 @@ function ChatPageInner() {
           </button>
         </div>
         <p style={{ maxWidth: 760, margin: '6px auto 0', fontSize: 11, color: C.textoSuave, textAlign: 'center' }}>
-          Las respuestas se basan exclusivamente en el material de cátedra. · <kbd style={{ fontSize: 10, background: '#eee', padding: '1px 4px', borderRadius: 3, border: '1px solid #ccc' }}>Shift+Enter</kbd> para nueva línea
+          Las respuestas se basan exclusivamente en el material de cátedra. <span className="hide-mobile">· <kbd style={{ fontSize: 10, background: '#eee', padding: '1px 4px', borderRadius: 3, border: '1px solid #ccc' }}>Shift+Enter</kbd> para nueva línea</span>
         </p>
       </div>
     </div>

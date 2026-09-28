@@ -18,19 +18,19 @@ export default function Navbar() {
       top: 0,
       zIndex: 100,
     }}>
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', height: 58 }}>
+      <div className="nav-inner">
 
         {/* Logo */}
-        <Link href="/chat" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', marginRight: 32 }}>
+        <Link href="/chat" className="nav-brand" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
           <img src="/fauba-icon.png" alt="FAUBA" style={{ width: 34, height: 34, objectFit: 'contain' }} />
           <div>
             <div style={{ fontWeight: 700, fontSize: 14, color: C.texto, lineHeight: 1.2 }}>Asistente FAUBA</div>
-            <div style={{ fontSize: 11, color: C.textoSuave, lineHeight: 1.2 }}>Material de Cátedra</div>
+            <div className="hide-mobile" style={{ fontSize: 11, color: C.textoSuave, lineHeight: 1.2 }}>Material de Cátedra</div>
           </div>
         </Link>
 
         {/* Nav links */}
-        <nav style={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
+        <nav className="nav-links">
           <NavLink href="/chat" active={pathname === '/chat'}>Consultas</NavLink>
           <NavLink href="/history" active={pathname === '/history'}>Historial</NavLink>
           {user?.role === 'admin' && (
@@ -41,7 +41,7 @@ export default function Navbar() {
         {/* User */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {user && (
-            <div style={{
+            <div className="hide-mobile" style={{
               background: C.verdeLight,
               border: `1px solid #c8dfc0`,
               borderRadius: 20,

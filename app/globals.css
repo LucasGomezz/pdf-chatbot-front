@@ -40,6 +40,9 @@ body {
 .md-content strong { font-weight: 600; }
 .md-content em { font-style: italic; }
 .md-content ul, .md-content ol { margin: 8px 0 8px 20px; }
+/* El reseteo de Tailwind quita viñetas y números de las listas */
+.md-content ul { list-style: disc; }
+.md-content ol { list-style: decimal; }
 .md-content li { margin-bottom: 4px; }
 .md-content h1, .md-content h2, .md-content h3 { font-weight: 700; margin: 12px 0 6px; }
 .md-content h1 { font-size: 16px; }
@@ -50,10 +53,66 @@ body {
 .md-content pre code { background: none; padding: 0; }
 .md-content blockquote { border-left: 3px solid #d1d5db; margin: 8px 0; padding-left: 12px; color: #6b7280; }
 .md-content a { color: #3a6e28; text-decoration: underline; }
+/* Links y palabras largas no se salen del globo */
+.md-content { overflow-wrap: anywhere; }
+/* Las tablas se desplazan de costado dentro del globo en vez de aplastarse */
+.md-content table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: 8px 0; font-size: 13px; }
+.md-content th, .md-content td { border: 1px solid #e2e2dc; padding: 6px 10px; text-align: left; vertical-align: top; min-width: 90px; overflow-wrap: normal; }
+.md-content th { background: #eef4eb; font-weight: 600; }
 
-/* Lau companion in the chat screen: hidden on narrow viewports so she
-   doesn't crowd the conversation on mobile. */
-.lau-companion { display: flex; }
+/* ---------- Responsive ----------
+   Los estilos del sitio van inline; acá viven solo las propiedades que cambian
+   según el ancho de pantalla (un estilo inline no se puede pisar desde un @media). */
+
+/* Header */
+.nav-inner { max-width: 1100px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; height: 58px; }
+.nav-brand { margin-right: 32px; }
+.nav-links { display: flex; align-items: center; gap: 2px; flex: 1; }
+
+/* Botones de cada documento: en fila en pantallas anchas, apilados en celular */
+.doc-actions { white-space: nowrap; }
+.doc-actions button { margin: 2px 0 2px 6px; }
+
+/* Chat: Lau a la izquierda de la conversación */
+.chat-layout { display: flex; gap: 20px; align-items: flex-start; }
+.lau-companion { position: sticky; top: 0; flex-shrink: 0; width: 190px; display: flex; flex-direction: column; align-items: center; padding-top: 4px; }
+.lau-img { height: 190px; width: auto; transition: opacity 0.15s; }
+.lau-bubble { position: relative; margin-top: 14px; }
+.lau-bubble-box { max-width: 180px; text-align: center; }
+/* min-width: 0 para que una tabla ancha se desplace dentro del globo en vez de estirarlo */
+.msg-bubble { max-width: 72%; min-width: 0; }
+
+/* Franja de Lau para celulares (entre el header y la conversación) */
+.lau-strip { display: none; }
+/* El saludo dentro de Lau solo se usa en la franja; en pantallas anchas va en la conversación */
+.lau-companion .lau-greeting { display: none; }
+
+/* Historial: pregunta en un renglón con "…" (hasta dos renglones en celular) */
+.hist-question { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 @media (max-width: 680px) {
   .lau-companion { display: none; }
+  .lau-strip {
+    display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+    padding: 6px 16px; background: #f5f5f3; border-bottom: 1px solid #e2e2dc;
+  }
+  .lau-strip .lau-img { height: 72px; }
+  .lau-strip--intro .lau-img { height: 104px; }
+  .lau-strip .lau-bubble { margin-top: 0; }
+  .lau-strip .lau-bubble-box { max-width: none; text-align: left; }
+  .lau-strip .lau-tail { display: none; }
+  .msg-bubble { max-width: 88%; }
+  .chat-greeting { display: none !important; }
+  .hist-question { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+}
+
+@media (max-width: 640px) {
+  .hide-mobile { display: none !important; }
+  .doc-actions { white-space: normal; padding: 8px 10px !important; }
+  .doc-actions button { display: block; margin: 4px 0 4px auto; }
+
+  /* Header en dos filas: marca + Salir arriba, secciones abajo */
+  .nav-inner { flex-wrap: wrap; height: auto; padding: 8px 12px 0; row-gap: 6px; }
+  .nav-brand { margin-right: auto; }
+  .nav-links { order: 3; flex: 1 1 100%; justify-content: space-around; border-top: 1px solid #e2e2dc; padding: 4px 0; }
 }

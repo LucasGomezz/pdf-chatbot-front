@@ -421,6 +421,7 @@ function DocumentsSection({ token, onActivity }: { token: string | null; onActiv
           No hay documentos ingresados aún.
         </div>
       ) : (
+        <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', background: 'white', border: `1px solid ${C.grisBorde}`, borderRadius: 4, fontSize: 13 }}>
           <thead>
             <tr style={{ background: C.verdeLight, borderBottom: `2px solid ${C.grisBorde}` }}>
@@ -428,9 +429,9 @@ function DocumentsSection({ token, onActivity }: { token: string | null; onActiv
                 <input type="checkbox" checked={selected.size === docs.length} onChange={toggleAll} />
               </th>
               <th style={{ textAlign: 'left', padding: '10px 16px', fontWeight: 700, color: C.verdeDark }}>Título</th>
-              <th style={{ textAlign: 'left', padding: '10px 16px', fontWeight: 700, color: C.verdeDark }}>Archivo</th>
-              <th style={{ textAlign: 'center', padding: '10px 16px', fontWeight: 700, color: C.verdeDark }}>Versión</th>
-              <th style={{ textAlign: 'right', padding: '10px 16px', fontWeight: 700, color: C.verdeDark }}>Ingresado</th>
+              <th className="hide-mobile" style={{ textAlign: 'left', padding: '10px 16px', fontWeight: 700, color: C.verdeDark }}>Archivo</th>
+              <th className="hide-mobile" style={{ textAlign: 'center', padding: '10px 16px', fontWeight: 700, color: C.verdeDark }}>Versión</th>
+              <th className="hide-mobile" style={{ textAlign: 'right', padding: '10px 16px', fontWeight: 700, color: C.verdeDark }}>Ingresado</th>
               <th style={{ padding: '10px 16px' }} />
             </tr>
           </thead>
@@ -451,22 +452,22 @@ function DocumentsSection({ token, onActivity }: { token: string | null; onActiv
                     </span>
                   )}
                 </td>
-                <td style={{ padding: '10px 16px', color: C.textoSuave, fontFamily: 'monospace', fontSize: 12 }}>{doc.sourceFile}</td>
-                <td style={{ padding: '10px 16px', textAlign: 'center' }}>
+                <td className="hide-mobile" style={{ padding: '10px 16px', color: C.textoSuave, fontFamily: 'monospace', fontSize: 12 }}>{doc.sourceFile}</td>
+                <td className="hide-mobile" style={{ padding: '10px 16px', textAlign: 'center' }}>
                   <span style={{ background: C.verde, color: 'white', borderRadius: 10, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>
                     v{doc.version}
                   </span>
                 </td>
-                <td style={{ padding: '10px 16px', textAlign: 'right', color: C.textoSuave }}>
+                <td className="hide-mobile" style={{ padding: '10px 16px', textAlign: 'right', color: C.textoSuave }}>
                   {new Date(doc.ingestedAt).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </td>
-                <td style={{ padding: '10px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                <td className="doc-actions" style={{ padding: '10px 16px', textAlign: 'right' }}>
                   {doc.status === 'processing' && (
                     <button
                       onClick={() => resumeDoc(doc)} disabled={busy}
                       title="Seguir procesando desde donde quedó"
                       style={{
-                        background: 'transparent', border: '1px solid #c8dfc0', borderRadius: 4, marginRight: 6,
+                        background: 'transparent', border: '1px solid #c8dfc0', borderRadius: 4,
                         color: C.verdeDark, fontSize: 12, padding: '4px 8px', cursor: busy ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                       }}
                     >
@@ -488,6 +489,7 @@ function DocumentsSection({ token, onActivity }: { token: string | null; onActiv
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </>
   );
@@ -853,7 +855,7 @@ function StudentsSection({ token, onActivity, emails, loaded, reload }: EntriesP
           </div>
           {filteredEmails.map((entry, i) => (
             <div key={entry.email} style={{
-              display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px',
+              display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', flexWrap: 'wrap',
               borderBottom: i < filteredEmails.length - 1 ? `1px solid ${C.grisBorde}` : 'none',
             }}>
               {editingEmail === entry.email ? (
@@ -885,7 +887,7 @@ function StudentsSection({ token, onActivity, emails, loaded, reload }: EntriesP
               ) : (
                 <>
                   <input type="checkbox" checked={selected.has(entry.email)} onChange={() => toggleOne(entry.email)} />
-                  <span style={{ flex: 1, fontSize: 13, fontFamily: 'monospace', color: C.texto }}>{entry.email}</span>
+                  <span style={{ flex: '1 1 180px', minWidth: 0, overflowWrap: 'anywhere', fontSize: 13, fontFamily: 'monospace', color: C.texto }}>{entry.email}</span>
                   {isSuperAdmin && (
                     <button
                       onClick={() => promoteEmail(entry.email, true)}
@@ -1055,7 +1057,7 @@ function TeachersSection({ onActivity, teachers, loaded, reload }: EntriesProps 
               display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', flexWrap: 'wrap',
               borderBottom: i < teachers.length - 1 ? `1px solid ${C.grisBorde}` : 'none',
             }}>
-              <span style={{ flex: 1, minWidth: 160, fontSize: 13, fontFamily: 'monospace', color: C.texto, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <span style={{ flex: '1 1 180px', minWidth: 0, overflowWrap: 'anywhere', fontSize: 13, fontFamily: 'monospace', color: C.texto }}>
                 {entry.email}
               </span>
               <span style={{ background: C.verdeLight, color: C.verdeDark, borderRadius: 10, padding: '2px 8px', fontSize: 10, fontWeight: 700 }}>
