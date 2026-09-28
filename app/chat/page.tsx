@@ -66,7 +66,9 @@ function ChatPageInner() {
     // con una respuesta inventada de Lau y pasárselo a otro alumno.
     const resume = searchParams.get('resume');
     if (resume) {
-      router.replace('/chat');
+      // Se limpia la URL sin navegar: con router.replace, en una carga directa
+      // el ?resume= a veces quedaba en la barra.
+      window.history.replaceState(null, '', '/chat');
       apiFetch<{ question: string; answer: string; sources: Source[] }>(`/chat/history/${encodeURIComponent(resume)}`)
         .then((item) => {
           const restored: Message[] = [
@@ -82,7 +84,7 @@ function ChatPageInner() {
 
     const saved = loadSession();
     if (saved.length) setMessages(saved);
-  }, [loading, user, searchParams, router]);
+  }, [loading, user, searchParams]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
