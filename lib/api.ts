@@ -29,7 +29,9 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   if (!res.ok) {
     notifyIfUnauthorized(res);
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.message || `HTTP ${res.status}`);
+    // Los errores de validación llegan como lista de mensajes.
+    const message = Array.isArray(body.message) ? body.message.join(' ') : body.message;
+    throw new Error(message || `HTTP ${res.status}`);
   }
 
   return res.json();
