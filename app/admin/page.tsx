@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
+import { extractPdfText } from '@/lib/pdf-text';
 import { C } from '@/lib/colors';
 import Navbar from '@/components/Navbar';
 import AdminTabs, { AdminTab } from '@/components/AdminTabs';
@@ -12,6 +13,12 @@ const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
 // Duración mínima de la pose "pensando" en las acciones de alumnos, que suelen
 // ser casi instantáneas — así se alcanza a notar el cambio de animación.
 const MIN_ACTION_MS = 900;
+// Vercel corta los requests de más de ~4.5 MB; se deja margen.
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+// Reintentos seguidos ante errores de red antes de dejar el documento como incompleto.
+const MAX_PROCESS_RETRIES = 3;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function withMinDelay<T>(promise: Promise<T>, start: number, min: number): Promise<T> {
   return promise.then((result) => {
@@ -26,6 +33,30 @@ interface DocItem {
   sourceFile: string;
   version: number;
   ingestedAt: string;
+  status?: 'processing' | 'ready';
+  totalChunks?: number;
+  processedChunks?: number;
+}
+
+interface IngestProgress {
+  id: string;
+  status: 'processing' | 'ready';
+  processed: number;
+  total: number;
+  retryAfterMs?: number;
+}
+
+async function postMultipart<T>(path: string, form: FormData, token: string | null): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `HTTP ${res.status}`);
+  }
+  return res.json();
 }
 
 export type LauStatus = 'idle' | 'busy' | 'success';
@@ -36,10 +67,28 @@ export default function AdminPage() {
   const [tab, setTab] = useState<AdminTab>('documents');
   const [lauStatus, setLauStatus] = useState<LauStatus>('idle');
   const [hasInteracted, setHasInteracted] = useState(false);
+  // La lista de autorizados vive acá y se reparte entre las pestañas de alumnos y
+  // docentes, así promover o quitar a alguien se refleja en ambas sin recargar.
+  const [entries, setEntries] = useState<StudentEntry[]>([]);
+  const [entriesLoaded, setEntriesLoaded] = useState(false);
 
   useEffect(() => {
     if (!loading && (!user || user.role !== 'admin')) router.push('/chat');
   }, [user, loading, router]);
+
+  function loadEntries() {
+    return apiFetch<StudentEntry[]>('/admin/students')
+      .then(setEntries)
+      .catch(console.error)
+      .finally(() => setEntriesLoaded(true));
+  }
+
+  useEffect(() => {
+    if (!loading && user?.role === 'admin') loadEntries();
+  }, [loading, user]);
+
+  const students = useMemo(() => entries.filter((e) => !e.isAdmin), [entries]);
+  const teachers = useMemo(() => entries.filter((e) => e.isAdmin), [entries]);
 
   function reportActivity(status: LauStatus) {
     setLauStatus(status);
@@ -108,7 +157,10 @@ export default function AdminPage() {
           <DocumentsSection token={token} onActivity={reportActivity} />
         </div>
         <div style={{ display: tab === 'students' ? 'block' : 'none' }}>
-          <StudentsSection token={token} onActivity={reportActivity} />
+          <StudentsSection token={token} onActivity={reportActivity} emails={students} loaded={entriesLoaded} reload={loadEntries} />
+        </div>
+        <div style={{ display: tab === 'teachers' ? 'block' : 'none' }}>
+          <TeachersSection onActivity={reportActivity} teachers={teachers} loaded={entriesLoaded} reload={loadEntries} />
         </div>
       </main>
 
@@ -125,6 +177,7 @@ function DocumentsSection({ token, onActivity }: { token: string | null; onActiv
   const [status, setStatus] = useState<{ msg: string; ok: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [fileName, setFileName] = useState('');
+  const [progress, setProgress] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -177,35 +230,93 @@ function DocumentsSection({ token, onActivity }: { token: string | null; onActiv
     }
   }
 
-  async function uploadFile() {
-    const file = fileRef.current?.files?.[0];
-    if (!file) return;
+  // Sube el archivo (o el texto del PDF) y crea el documento en estado "en proceso".
+  async function startUpload(file: File): Promise<IngestProgress> {
+    const isPdf = file.name.toLowerCase().endsWith('.pdf');
+    if (isPdf) {
+      setProgress('Leyendo el PDF...');
+      let text: string | null = null;
+      try {
+        text = await extractPdfText(file);
+      } catch (err) {
+        console.error('No se pudo extraer el texto en el navegador', err);
+      }
+      if (text !== null) {
+        if (!text.trim()) {
+          throw new Error('El PDF no tiene texto seleccionable. Si es un escaneo (imágenes), hace falta pasarlo por OCR antes de subirlo.');
+        }
+        const body = JSON.stringify({ fileName: file.name, text });
+        if (new Blob([body]).size > MAX_UPLOAD_BYTES) {
+          throw new Error('El texto del PDF es demasiado largo para subirlo de una vez. Dividilo en partes más chicas.');
+        }
+        setProgress('Subiendo el texto...');
+        return apiFetch<IngestProgress>('/admin/documents/upload-text', { method: 'POST', body });
+      }
+      // Si falló la lectura en el navegador, se manda el PDF entero y lo procesa el backend.
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      throw new Error(`El archivo pesa ${(file.size / 1024 / 1024).toFixed(1)} MB y el máximo es 4 MB.`);
+    }
+    setProgress('Subiendo el archivo...');
+    const form = new FormData();
+    form.append('file', file);
+    return postMultipart<IngestProgress>('/admin/documents/upload', form, token);
+  }
+
+  // Pide al backend que siga procesando por tandas hasta terminar. Si hay que
+  // esperar por el límite de la API de embeddings, espera y sigue solo.
+  async function processUntilReady(initial: IngestProgress): Promise<void> {
+    let current = initial;
+    let failures = 0;
+    while (current.status !== 'ready') {
+      setProgress(`Procesando fragmentos: ${current.processed} de ${current.total}`);
+      if (current.retryAfterMs) {
+        setProgress(`Procesando fragmentos: ${current.processed} de ${current.total} — esperando ${Math.ceil(current.retryAfterMs / 1000)} s por el límite de la API...`);
+        await sleep(current.retryAfterMs);
+      }
+      try {
+        current = await apiFetch<IngestProgress>(`/admin/documents/${current.id}/process`, { method: 'POST' });
+        failures = 0;
+      } catch (err) {
+        failures++;
+        if (failures >= MAX_PROCESS_RETRIES) throw err;
+        await sleep(3000);
+      }
+    }
+  }
+
+  async function runIngest(start: () => Promise<IngestProgress>) {
     setBusy(true);
     setStatus(null);
     onActivity('busy');
     try {
-      const form = new FormData();
-      form.append('file', file);
-      const res = await fetch(`${BASE}/admin/documents/upload`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: form,
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || `HTTP ${res.status}`);
-      }
+      const initial = await start();
+      await processUntilReady(initial);
       setStatus({ msg: 'Archivo subido e ingesta completada correctamente.', ok: true });
       onActivity('success');
-      loadDocs();
       if (fileRef.current) fileRef.current.value = '';
       setFileName('');
     } catch (err: any) {
-      setStatus({ msg: `Error: ${err.message}`, ok: false });
+      setStatus({
+        msg: `Error: ${err.message}. Si el documento quedó como "Incompleto" en la lista, podés reanudarlo; mientras tanto el asistente sigue usando la versión anterior.`,
+        ok: false,
+      });
       onActivity('idle');
     } finally {
+      setProgress('');
       setBusy(false);
+      loadDocs();
     }
+  }
+
+  function uploadFile() {
+    const file = fileRef.current?.files?.[0];
+    if (!file) return;
+    runIngest(() => startUpload(file));
+  }
+
+  function resumeDoc(doc: DocItem) {
+    runIngest(() => apiFetch<IngestProgress>(`/admin/documents/${doc._id}/process`, { method: 'POST' }));
   }
 
   if (fetching) return null;
@@ -260,7 +371,8 @@ function DocumentsSection({ token, onActivity }: { token: string | null; onActiv
           </div>
           {busy && (
             <p style={{ fontSize: 12, color: C.textoSuave, marginTop: 10, fontStyle: 'italic' }}>
-              Procesando el documento — puede tardar hasta varios minutos según el tamaño. No cierres esta pestaña.
+              {progress && <strong style={{ fontStyle: 'normal', color: C.verdeDark }}>{progress}. </strong>}
+              Puede tardar varios minutos según el tamaño. No cierres esta pestaña; si se corta, el documento queda como &quot;Incompleto&quot; y lo podés reanudar.
             </p>
           )}
         </div>
@@ -320,7 +432,17 @@ function DocumentsSection({ token, onActivity }: { token: string | null; onActiv
                 <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                   <input type="checkbox" checked={selected.has(doc._id)} onChange={() => toggleOne(doc._id)} />
                 </td>
-                <td style={{ padding: '10px 16px', fontWeight: 600, color: C.texto }}>{doc.title}</td>
+                <td style={{ padding: '10px 16px', fontWeight: 600, color: C.texto }}>
+                  {doc.title}
+                  {doc.status === 'processing' && (
+                    <span
+                      title="No se usa en el chat hasta terminar de procesarse"
+                      style={{ marginLeft: 8, background: '#fdf6e8', color: '#7a5c10', border: '1px solid #e8d8a8', borderRadius: 10, padding: '1px 8px', fontSize: 10, fontWeight: 700 }}
+                    >
+                      INCOMPLETO {doc.processedChunks ?? 0}/{doc.totalChunks ?? 0}
+                    </span>
+                  )}
+                </td>
                 <td style={{ padding: '10px 16px', color: C.textoSuave, fontFamily: 'monospace', fontSize: 12 }}>{doc.sourceFile}</td>
                 <td style={{ padding: '10px 16px', textAlign: 'center' }}>
                   <span style={{ background: C.verde, color: 'white', borderRadius: 10, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>
@@ -330,7 +452,19 @@ function DocumentsSection({ token, onActivity }: { token: string | null; onActiv
                 <td style={{ padding: '10px 16px', textAlign: 'right', color: C.textoSuave }}>
                   {new Date(doc.ingestedAt).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </td>
-                <td style={{ padding: '10px 16px', textAlign: 'right' }}>
+                <td style={{ padding: '10px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  {doc.status === 'processing' && (
+                    <button
+                      onClick={() => resumeDoc(doc)} disabled={busy}
+                      title="Seguir procesando desde donde quedó"
+                      style={{
+                        background: 'transparent', border: '1px solid #c8dfc0', borderRadius: 4, marginRight: 6,
+                        color: C.verdeDark, fontSize: 12, padding: '4px 8px', cursor: busy ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                      }}
+                    >
+                      Reanudar
+                    </button>
+                  )}
                   <button
                     onClick={() => deleteDoc(doc)}
                     title="Borrar documento"
@@ -356,11 +490,18 @@ interface StudentEntry {
   isAdmin: boolean;
 }
 
-function StudentsSection({ token, onActivity }: { token: string | null; onActivity: (status: LauStatus) => void }) {
+interface EntriesProps {
+  loaded: boolean;
+  reload: () => Promise<void>;
+}
+
+function StudentsSection({ token, onActivity, emails, loaded, reload }: EntriesProps & {
+  token: string | null;
+  onActivity: (status: LauStatus) => void;
+  emails: StudentEntry[];
+}) {
   const { user } = useAuth();
   const isSuperAdmin = !!user?.isSuperAdmin;
-  const [emails, setEmails] = useState<StudentEntry[]>([]);
-  const [fetching, setFetching] = useState(true);
   const [status, setStatus] = useState<{ msg: string; ok: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [addValue, setAddValue] = useState('');
@@ -372,13 +513,8 @@ function StudentsSection({ token, onActivity }: { token: string | null; onActivi
   const fileRef = useRef<HTMLInputElement>(null);
 
   function loadEmails() {
-    apiFetch<StudentEntry[]>('/admin/students')
-      .then((list) => { setEmails(list); setSelected(new Set()); })
-      .catch(console.error)
-      .finally(() => setFetching(false));
+    reload().then(() => setSelected(new Set()));
   }
-
-  useEffect(() => { loadEmails(); }, []);
 
   const filteredEmails = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -508,16 +644,14 @@ function StudentsSection({ token, onActivity }: { token: string | null; onActivi
   }
 
   async function promoteEmail(email: string, makeAdmin: boolean) {
-    if (!confirm(makeAdmin
-      ? `¿Darle permisos de administrador a ${email}? Va a poder cargar material y gestionar alumnos.`
-      : `¿Sacarle los permisos de administrador a ${email}?`)) return;
+    if (!confirm(`¿Nombrar a ${email} docente de la cátedra? Va a poder cargar material y gestionar alumnos, y pasa a la pestaña "Docentes de cátedra".`)) return;
     setStatus(null);
     try {
       await apiFetch(`/admin/students/${encodeURIComponent(email)}/admin`, {
         method: 'PATCH',
         body: JSON.stringify({ isAdmin: makeAdmin }),
       });
-      setStatus({ msg: makeAdmin ? `${email} ahora es administrador.` : `${email} ya no es administrador.`, ok: true });
+      setStatus({ msg: `${email} ahora es docente de la cátedra.`, ok: true });
       loadEmails();
     } catch (err: any) {
       setStatus({ msg: `Error: ${err.message}`, ok: false });
@@ -541,12 +675,12 @@ function StudentsSection({ token, onActivity }: { token: string | null; onActivi
   }
 
   async function clearAll() {
-    if (!confirm(`¿Borrar TODOS los ${emails.length} emails autorizados? Ningún alumno va a poder registrarse ni iniciar sesión hasta que cargues una lista nueva.`)) return;
+    if (!confirm(`¿Borrar TODOS los ${emails.length} alumnos autorizados? Ningún alumno va a poder registrarse ni iniciar sesión hasta que cargues una lista nueva. Los docentes no se ven afectados.`)) return;
     setBusy(true);
     setStatus(null);
     try {
       await apiFetch('/admin/students/all', { method: 'DELETE' });
-      setStatus({ msg: 'Se borró toda la lista.', ok: true });
+      setStatus({ msg: 'Se borró toda la lista de alumnos.', ok: true });
       loadEmails();
     } catch (err: any) {
       setStatus({ msg: `Error: ${err.message}`, ok: false });
@@ -555,7 +689,7 @@ function StudentsSection({ token, onActivity }: { token: string | null; onActivi
     }
   }
 
-  if (fetching) return null;
+  if (!loaded) return null;
 
   return (
     <>
@@ -744,25 +878,16 @@ function StudentsSection({ token, onActivity }: { token: string | null; onActivi
                 <>
                   <input type="checkbox" checked={selected.has(entry.email)} onChange={() => toggleOne(entry.email)} />
                   <span style={{ flex: 1, fontSize: 13, fontFamily: 'monospace', color: C.texto }}>{entry.email}</span>
-                  {entry.isAdmin && (
-                    <span style={{
-                      background: C.verdeLight, color: C.verdeDark, borderRadius: 10,
-                      padding: '2px 8px', fontSize: 10, fontWeight: 700,
-                    }}>
-                      ADMIN
-                    </span>
-                  )}
                   {isSuperAdmin && (
                     <button
-                      onClick={() => promoteEmail(entry.email, !entry.isAdmin)}
-                      title={entry.isAdmin ? 'Sacar permisos de administrador' : 'Dar permisos de administrador'}
+                      onClick={() => promoteEmail(entry.email, true)}
+                      title="Nombrar docente de la cátedra"
                       style={{
-                        background: 'transparent', border: `1px solid ${entry.isAdmin ? '#e8c0c0' : '#c8dfc0'}`,
-                        color: entry.isAdmin ? '#c0392b' : C.verdeDark,
+                        background: 'transparent', border: '1px solid #c8dfc0', color: C.verdeDark,
                         borderRadius: 4, padding: '4px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
                       }}
                     >
-                      {entry.isAdmin ? 'Quitar admin' : 'Hacer admin'}
+                      Hacer docente
                     </button>
                   )}
                   <button
@@ -775,6 +900,171 @@ function StudentsSection({ token, onActivity }: { token: string | null; onActivi
                   <button
                     onClick={() => removeEmail(entry.email)}
                     title="Sacar de la lista"
+                    style={{ background: 'transparent', border: '1px solid #e8c0c0', color: '#c0392b', borderRadius: 4, padding: '4px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    Borrar
+                  </button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function TeachersSection({ onActivity, teachers, loaded, reload }: EntriesProps & {
+  onActivity: (status: LauStatus) => void;
+  teachers: StudentEntry[];
+}) {
+  const { user } = useAuth();
+  const isSuperAdmin = !!user?.isSuperAdmin;
+  const [status, setStatus] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [addValue, setAddValue] = useState('');
+
+  async function addTeachers() {
+    const list = addValue.split(/[\r\n,;]+/).map((e) => e.trim()).filter(Boolean);
+    if (list.length === 0) return;
+    setBusy(true);
+    setStatus(null);
+    onActivity('busy');
+    const start = Date.now();
+    try {
+      const result = await withMinDelay(
+        apiFetch<{ added: number; promoted: number }>('/admin/students/teachers', {
+          method: 'POST',
+          body: JSON.stringify({ emails: list }),
+        }),
+        start, MIN_ACTION_MS,
+      );
+      const parts = [`${result.added} docente(s) agregado(s)`];
+      if (result.promoted > 0) parts.push(`${result.promoted} alumno(s) pasaron a docente`);
+      setStatus({ msg: parts.join(', ') + '.', ok: true });
+      onActivity('success');
+      setAddValue('');
+      reload();
+    } catch (err: any) {
+      setStatus({ msg: `Error: ${err.message}`, ok: false });
+      onActivity('idle');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function revoke(email: string) {
+    if (!confirm(`¿Quitarle los permisos de docente a ${email}? Deja de poder cargar material y gestionar alumnos, y vuelve a la lista de alumnos.`)) return;
+    setStatus(null);
+    try {
+      await apiFetch(`/admin/students/${encodeURIComponent(email)}/admin`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isAdmin: false }),
+      });
+      setStatus({ msg: `${email} ya no es docente.`, ok: true });
+      reload();
+    } catch (err: any) {
+      setStatus({ msg: `Error: ${err.message}`, ok: false });
+    }
+  }
+
+  async function remove(email: string) {
+    if (!confirm(`¿Sacar a ${email} de la cátedra? Pierde el acceso a la plataforma por completo.`)) return;
+    setStatus(null);
+    try {
+      await apiFetch(`/admin/students/${encodeURIComponent(email)}`, { method: 'DELETE' });
+      setStatus({ msg: `${email} eliminado.`, ok: true });
+      reload();
+    } catch (err: any) {
+      setStatus({ msg: `Error: ${err.message}`, ok: false });
+    }
+  }
+
+  if (!loaded) return null;
+
+  return (
+    <>
+      {isSuperAdmin && (
+        <div style={{ background: 'white', border: `1px solid ${C.grisBorde}`, borderRadius: 4, overflow: 'hidden', marginBottom: 28 }}>
+          <div style={{ background: C.verdeLight, borderBottom: `1px solid ${C.grisBorde}`, padding: '12px 18px' }}>
+            <p style={{ fontWeight: 700, fontSize: 14, color: C.verdeDark, margin: 0 }}>Agregar docentes</p>
+          </div>
+          <div style={{ padding: 18 }}>
+            <p style={{ fontSize: 13, color: C.textoSuave, marginBottom: 10 }}>
+              Los docentes son los únicos que pueden cargar material y gestionar la lista de alumnos. Pegá uno o más emails (uno por línea o separados por coma); si alguno ya era alumno, pasa a ser docente.
+            </p>
+            <textarea
+              value={addValue}
+              onChange={(e) => setAddValue(e.target.value)}
+              rows={3}
+              placeholder={'docente1@catedra.edu.ar\ndocente2@catedra.edu.ar'}
+              style={{
+                width: '100%', boxSizing: 'border-box', fontSize: 12, fontFamily: 'monospace',
+                border: `1px solid ${C.grisBorde}`, borderRadius: 4, padding: 10, resize: 'vertical', marginBottom: 12,
+              }}
+            />
+            <button
+              onClick={addTeachers} disabled={busy || !addValue.trim()}
+              style={{ background: (busy || !addValue.trim()) ? C.grisBorde : C.verde, color: 'white', border: 'none', borderRadius: 4, padding: '9px 18px', fontWeight: 600, fontSize: 13, cursor: (busy || !addValue.trim()) ? 'not-allowed' : 'pointer' }}
+            >
+              {busy ? 'Agregando...' : 'Agregar docentes'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {status && (
+        <div style={{
+          background: status.ok ? '#f0f8ee' : '#fdf0f0',
+          border: `1px solid ${status.ok ? '#b8d4b0' : '#e8c0c0'}`,
+          borderLeft: `4px solid ${status.ok ? C.verde : '#c0392b'}`,
+          borderRadius: 4, padding: '10px 16px', marginBottom: 24,
+          fontSize: 13, color: status.ok ? C.verdeDark : '#c0392b',
+        }}>
+          {status.msg}
+        </div>
+      )}
+
+      <div style={{ borderLeft: `5px solid ${C.verde}`, paddingLeft: 14, marginBottom: 16 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: C.verdeDark, margin: 0 }}>
+          Docentes de cátedra ({teachers.length})
+        </h2>
+        {!isSuperAdmin && (
+          <p style={{ fontSize: 12, color: C.textoSuave, margin: '4px 0 0' }}>
+            Solo el administrador general puede agregar o quitar docentes.
+          </p>
+        )}
+      </div>
+
+      {teachers.length === 0 ? (
+        <div style={{ background: 'white', border: `1px solid ${C.grisBorde}`, borderRadius: 4, padding: 20, textAlign: 'center', color: C.textoSuave, fontSize: 14 }}>
+          Todavía no hay docentes asignados.
+        </div>
+      ) : (
+        <div style={{ background: 'white', border: `1px solid ${C.grisBorde}`, borderRadius: 4, overflow: 'hidden' }}>
+          {teachers.map((entry, i) => (
+            <div key={entry.email} style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', flexWrap: 'wrap',
+              borderBottom: i < teachers.length - 1 ? `1px solid ${C.grisBorde}` : 'none',
+            }}>
+              <span style={{ flex: 1, minWidth: 160, fontSize: 13, fontFamily: 'monospace', color: C.texto, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {entry.email}
+              </span>
+              <span style={{ background: C.verdeLight, color: C.verdeDark, borderRadius: 10, padding: '2px 8px', fontSize: 10, fontWeight: 700 }}>
+                DOCENTE
+              </span>
+              {isSuperAdmin && (
+                <>
+                  <button
+                    onClick={() => revoke(entry.email)}
+                    title="Quitar permisos de docente"
+                    style={{ background: 'transparent', border: `1px solid ${C.grisBorde}`, color: C.textoMedio, borderRadius: 4, padding: '4px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    Quitar permisos
+                  </button>
+                  <button
+                    onClick={() => remove(entry.email)}
+                    title="Sacar de la cátedra"
                     style={{ background: 'transparent', border: '1px solid #e8c0c0', color: '#c0392b', borderRadius: 4, padding: '4px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}
                   >
                     Borrar

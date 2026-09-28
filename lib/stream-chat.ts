@@ -1,3 +1,5 @@
+import { notifyIfUnauthorized } from './api';
+
 const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
 
 export interface Source { chunkId: string; heading: string; snippet: string; }
@@ -33,6 +35,7 @@ export async function streamAsk(
   console.log(`[streamAsk] response status=${res.status}  contentType=${res.headers.get('content-type')}`);
 
   if (!res.ok) {
+    notifyIfUnauthorized(res);
     const body = await res.json().catch(() => ({}));
     console.error(`[streamAsk] error body:`, body);
     callbacks.onError(body.message || `Error ${res.status}`);

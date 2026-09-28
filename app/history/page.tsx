@@ -94,10 +94,7 @@ export default function HistoryPage() {
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                       <Link
-                        href={`/chat?resume=${encodeURIComponent(JSON.stringify([
-                          { role: 'user', content: item.question },
-                          { role: 'assistant', content: item.answer },
-                        ]))}`}
+                        href={`/chat?resume=${encodeURIComponent(item._id)}`}
                         onClick={e => e.stopPropagation()}
                         style={{
                           fontSize: 11, fontWeight: 500, color: C.verde,

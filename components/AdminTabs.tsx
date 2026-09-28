@@ -2,11 +2,12 @@
 
 import { C } from '@/lib/colors';
 
-export type AdminTab = 'documents' | 'students';
+export type AdminTab = 'documents' | 'students' | 'teachers';
 
 const TABS: { key: AdminTab; label: string }[] = [
   { key: 'documents', label: 'Material' },
   { key: 'students', label: 'Alumnos autorizados' },
+  { key: 'teachers', label: 'Docentes de cátedra' },
 ];
 
 export default function AdminTabs({ active, onChange }: { active: AdminTab; onChange: (tab: AdminTab) => void }) {

@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { apiFetch, AUTH_EXPIRED_EVENT } from './api';
 
 interface AuthUser {
   id: string;
@@ -35,9 +36,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (t && u) {
       setToken(t);
       setUser(JSON.parse(u));
+      // El usuario guardado puede estar desactualizado (p. ej. lo nombraron docente
+      // o le quitaron los permisos): se refresca el rol contra el servidor.
+      apiFetch<{ role: AuthUser['role']; isSuperAdmin?: boolean }>('/auth/me')
+        .then((me) => {
+          setUser((prev) => {
+            if (!prev) return prev;
+            const next = { ...prev, role: me.role, isSuperAdmin: me.isSuperAdmin };
+            localStorage.setItem('user', JSON.stringify(next));
+            return next;
+          });
+        })
+        .catch(() => { /* un 401 ya dispara el cierre de sesión */ });
     }
     setLoading(false);
   }, []);
+
+  useEffect(() => {
+    window.addEventListener(AUTH_EXPIRED_EVENT, logout);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, logout);
+  });
 
   function login(t: string, u: AuthUser) {
     localStorage.setItem('token', t);

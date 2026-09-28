@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { streamAsk } from '@/lib/stream-chat';
+import { apiFetch } from '@/lib/api';
 import { C } from '@/lib/colors';
 import Navbar from '@/components/Navbar';
 import SourceList from '@/components/SourceList';
@@ -60,19 +61,28 @@ function ChatPageInner() {
     if (loading || !user || initializedRef.current) return;
     initializedRef.current = true;
 
+    // "resume" trae solo el id de una consulta del historial: el contenido se pide
+    // al servidor, que valida que sea del usuario. Así nadie puede armar un link
+    // con una respuesta inventada de Lau y pasárselo a otro alumno.
     const resume = searchParams.get('resume');
     if (resume) {
-      try {
-        const parsed: Message[] = JSON.parse(decodeURIComponent(resume));
-        setMessages(parsed);
-        saveSession(parsed);
-      } catch { /* ignore */ }
+      router.replace('/chat');
+      apiFetch<{ question: string; answer: string; sources: Source[] }>(`/chat/history/${encodeURIComponent(resume)}`)
+        .then((item) => {
+          const restored: Message[] = [
+            { role: 'user', content: item.question },
+            { role: 'assistant', content: item.answer, sources: item.sources },
+          ];
+          setMessages(restored);
+          saveSession(restored);
+        })
+        .catch(() => setWsError('No se pudo recuperar esa consulta.'));
       return;
     }
 
     const saved = loadSession();
     if (saved.length) setMessages(saved);
-  }, [loading, user, searchParams]);
+  }, [loading, user, searchParams, router]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
