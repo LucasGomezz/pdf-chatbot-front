@@ -265,7 +265,7 @@ function ChatPageInner() {
                 Consultá sobre el material de estudio.<br />Las respuestas se basan exclusivamente en el contenido subido por los docentes.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {['¿Cuál es el tema principal del capítulo 3?', '¿Qué es la agricultura de precisión?', 'Explicame el concepto de nivelación'].map((q) => (
+                {['¿Cuál es el tema principal del capítulo 3 de los apuntes?', '¿Qué es la agricultura de precisión?', 'Explicame el concepto de nivelación'].map((q) => (
                   <button key={q} onClick={() => { setInput(q); textareaRef.current?.focus(); }}
                     style={{
                       background: '#fff', border: `1px solid ${C.grisBorde}`, borderRadius: 10,
